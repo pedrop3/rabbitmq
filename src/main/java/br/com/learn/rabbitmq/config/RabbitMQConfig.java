@@ -1,6 +1,12 @@
 package br.com.learn.rabbitmq.config;
 
-import org.springframework.amqp.core.DirectExchange;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.springframework.amqp.core.Binding;
+import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.core.FanoutExchange;
+import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -9,37 +15,46 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.retry.support.RetryTemplate;
 
 @Configuration
 public class RabbitMQConfig {
 
     @Bean
-    public DirectExchange directExchange() {
-        return new DirectExchange("event.v1.created.ex");
+    public Queue queueItem() {
+        Map<String, Object> args = new HashMap<>();
+        args.put("x-dead-letter-exchange", "event.v1.created.dlx");
+        // args.put("x-dead-letter-routing-key",
+        // "event.v1.created.dlx.generate-item.dlq"); - envio direito para fila
+        return new Queue("event.v1.created.generate-item", true, false, false, args);
     }
 
     @Bean
-    public DirectExchange directExchangeDLX() {
-        return new DirectExchange("event.v1.created.dlx");
+    public Binding binding() {
+        Queue queue = queueItem();
+        FanoutExchange exchange = new FanoutExchange("event.v1.created.ex");
+        return BindingBuilder.bind(queue).to(exchange);
     }
 
-    public RetryTemplate retryTemplate() {
-        RetryTemplate RetryTemplate = new RetryTemplate();
-        return new RetryTemplate();
+    @Bean
+    public Queue queueItemDLQ() {
+        return new Queue("event.v1.created.dlx.generate-item.dlq");
+    }
+
+    @Bean
+    public Queue queueItemDLQParkingLot() {
+        return new Queue("event.v1.created.dlx.generate-item.dlq.parking-lot");
+    }
+
+    @Bean
+    public Binding bindingDLQ() {
+        Queue queue = queueItemDLQ();
+        FanoutExchange exchange = new FanoutExchange("event.v1.created.dlx");
+        return BindingBuilder.bind(queue).to(exchange);
     }
 
     @Bean
     public RabbitAdmin rabbitAdmin(ConnectionFactory connectionFactory) {
-        RabbitAdmin rabbitAdmin = new RabbitAdmin(connectionFactory);
-        rabbitAdmin.setRetryTemplate(retryTemplate());
-        return rabbitAdmin;
-    }
-
-    @Bean
-    public ApplicationListener<ApplicationReadyEvent> applicationReadyEventApplicationListener(
-            RabbitAdmin rabbitAdmin) {
-        return event -> rabbitAdmin.initialize();
+        return new RabbitAdmin(connectionFactory);
     }
 
     @Bean
@@ -51,8 +66,16 @@ public class RabbitMQConfig {
     public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory,
             Jackson2JsonMessageConverter messageConverter) {
         RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
+
         rabbitTemplate.setMessageConverter(messageConverter);
+
         return rabbitTemplate;
+    }
+
+    @Bean
+    public ApplicationListener<ApplicationReadyEvent> applicationReadyEventApplicationListener(
+            RabbitAdmin rabbitAdmin) {
+        return event -> rabbitAdmin.initialize();
     }
 
 }
