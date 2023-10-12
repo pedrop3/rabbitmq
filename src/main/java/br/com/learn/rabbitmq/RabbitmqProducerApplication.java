@@ -6,10 +6,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @EnableRabbit
 @SpringBootApplication
-public class RabbitmqApplication {
+public class RabbitmqProducerApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(RabbitmqApplication.class, args);
+		SpringApplication.run(RabbitmqProducerApplication.class, args);
 	}
 
 }
